@@ -1,7 +1,7 @@
 # 域名出售页（Domain Sale Page）
 
 纯静态方案：**没有后端、没有数据库进程**，nginx 托管静态文件即可。
-你用 Excel 维护「域名 / 价格」，粘贴进来跑一条命令生成 `domains.json`，
+用 Excel 维护「域名 / 价格」，粘贴进来跑一条命令生成 `domains.json`，
 页面 JS 根据访问的域名自动显示标题和价格。
 
 ## 目录结构
@@ -64,7 +64,7 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 ```
 
-然后把 1500 个域名的 A 记录都指向这台 VPS 的 IP 即可。
+然后域名的 A 记录都指向这台 VPS 的 IP 即可。
 所有域名共用这一个 nginx 站点（catch-all），**不需要逐域名配置**。
 
 ## 三、更新价格
@@ -95,12 +95,11 @@ const CONTACT_EMAIL = "you@example.com";
 ## 六、HTTPS（nginx 和 Caddy 两种方案，二选一）
 
 > 都基于 Let's Encrypt 免费证书。前提：域名的 A 记录已解析到 VPS。
-> 1500 个域名是互相独立的不同域名，通配符证书不适用，所以要批量/自动签发。
+> 多个域名是互相独立的不同域名，通配符证书不适用，所以要批量/自动签发。
 
 ### 方案 A：nginx + acme.sh 批量证书（保持现有架构）
 
-1500 个域名按每 100 个一组拆成 15 张证书（Let's Encrypt 单证书上限 100 个域名），
-脚本自动分组、自动检测变动（只重签有变化的组）、自动续期。在 VPS 上：
+脚本自动分组（Let's Encrypt 单证书上限 100 个域名）、自动检测变动（只重签有变化的组）、自动续期。在 VPS 上：
 
 ```bash
 # 1. 按「二、部署」把 HTTP 版跑起来，并确认域名解析已生效
@@ -154,8 +153,7 @@ systemctl reload caddy
 - 整个项目（含 `scripts/`、`deploy/`）上传到 `/var/www/domain-sale`，网站根目录
   默认 `/var/www/domain-sale/public`（Caddyfile 里可改）
 - 更新价格数据后**无需重启任何东西**：ask 接口按文件修改时间自动重新加载白名单
-- Cloudflare 接管 DNS 也是可选路线（边缘自动 HTTPS + CDN），适合愿意迁移 1500 个
-  域名 DNS 的情况，这里不展开
+
 
 ## 七、常见问题
 
