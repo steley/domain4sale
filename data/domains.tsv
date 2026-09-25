@@ -1,0 +1,7 @@
+# 从 Excel 复制「域名 + 价格」两列，直接粘贴到本文件并保存，
+# 然后运行: python3 scripts/build_json.py
+domain	price
+example.com	$2,500
+example.net	499
+example.org	$19,999.00
+example.io

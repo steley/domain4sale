@@ -1,0 +1,27 @@
+# 域名出售站 — Caddy 方案（on_demand_tls：访客首次访问某域名时自动签发/续期证书）
+#
+# 部署步骤见 README「六、HTTPS → 方案 B」。与 nginx 二选一（80/443 端口冲突）。
+
+{
+	# Let's Encrypt 账户邮箱（证书到期提醒用），改成你的
+	# email you@example.com
+
+	# 签发前 Caddy 会先询问本机白名单接口：这个域名是我的吗？
+	on_demand_tls {
+		ask http://127.0.0.1:5555/check
+	}
+}
+
+# 80 端口：全部跳转 HTTPS
+# （ACME 的 HTTP-01 验证由 Caddy 自动处理，不会被这条重定向挡住）
+http:// {
+	redir https://{host}{uri} 308
+}
+
+# 443 端口：catch-all，1500 个域名共用这一个站点
+https:// {
+	root * /var/www/domain-sale/public
+	encode gzip
+	header /data/domains.json Cache-Control "public, max-age=300"
+	file_server
+}
