@@ -19,7 +19,7 @@ http:// {
 	redir https://{host}{uri} 308
 }
 
-# 443 端口：catch-all，1500 个域名共用这一个站点
+# 443 端口：catch-all，所有域名共用这一个站点
 https:// {
 	root * /var/www/domain4sale/public
 	encode gzip

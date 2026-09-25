@@ -22,6 +22,10 @@ DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a
 HEADER_NAMES = {"domain", "domains", "name", "域名"}
 
 
+def warn(lineno: int, msg: str) -> None:
+    print(f"  ! 第 {lineno} 行：{msg}", file=sys.stderr)
+
+
 def clean_domain(raw: str) -> str:
     d = raw.strip().lstrip("\ufeff").lower()
     d = re.sub(r"^https?://", "", d)          # 粘贴成完整 URL 也能处理
@@ -75,24 +79,25 @@ def main() -> int:
         if domain in HEADER_NAMES:
             continue  # 表头行
         if not DOMAIN_RE.match(domain):
-            hint = "（中文域名请使用 punycode 形式 xn--…）" if re.search(r"[^\x00-\x7f]", domain) else ""
-            print(f"  ! 第 {lineno} 行跳过：无效域名 “{parts[0].strip()}”{hint}", file=sys.stderr)
+            hint = "跳过：无效域名 “%s”" % parts[0].strip()
+            if re.search(r"[^\x00-\x7f]", domain):
+                hint += "（中文域名请使用 punycode 形式 xn--…）"
+            warn(lineno, hint)
             bad += 1
             continue
         try:
             price = parse_price(parts[1]) if len(parts) > 1 else None
         except ValueError as e:
-            print(f"  ! 第 {lineno} 行跳过：{e}", file=sys.stderr)
+            warn(lineno, f"跳过：{e}")
             bad += 1
             continue
         if price is None:
-            # 没填价格的域名不写入 JSON，页面会显示 Make an offer
+            # 没填价格（或填 0）的域名不写入 JSON，页面会显示 Make an offer
             no_price += 1
             continue
         if domain in result:
+            warn(lineno, f"{domain} 重复，覆盖旧价格 {result[domain]} → {price}")
             dup += 1
-            print(f"  ! 第 {lineno} 行：{domain} 重复，覆盖旧价格 {result[domain]} → {price}",
-                  file=sys.stderr)
         result[domain] = price
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

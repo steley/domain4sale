@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # nginx 方案：用 acme.sh 把 domains.json 里的域名批量签发成多张证书。
-# Let's Encrypt 单证书最多 100 个域名，1500 个 → 15 张，脚本自动分组、
+# Let's Encrypt 单证书最多 100 个域名，超出数量脚本自动分组、
 # 自动检测变动（只重签有变化的组）、自动续期（acme.sh 自带 cron）。
+# 个别组签发失败不中断整批：失败组列入清单、退出码非零，重跑可续签。
 #
 # 用法（在 VPS 上以 root 运行；域名 A 记录需已解析到本机）:
 #   curl https://get.acme.sh | sh -s email=你的邮箱
@@ -53,11 +54,41 @@ done \
 
 TOTAL=${#DOMAINS[@]}
 if [ "$TOTAL" -eq 0 ]; then
-  echo "✗ $DOMAIN_FILE 里没有域名" >&2
+  echo "✗ ${DOMAIN_FILE} 里没有域名" >&2
   exit 1
 fi
 
 mkdir -p "$CERT_DIR"
+
+# 签发一组并安装到 $CERT_DIR/group-<NN>/，成功后写入组名单和 CA 记录。
+# 调用方在 if 条件中调用本函数，因此函数内 set -e 已关闭——
+# 失败一律显式 `|| return 1`，由调用方统一记录失败组。
+issue_and_install() {
+  local nn="$1"
+  shift
+  local primary="$1"
+  local manifest="$CERT_DIR/group-$nn.domains"
+  local cafile="$CERT_DIR/group-$nn.ca"
+
+  local args=(--server "$ACME_SERVER" --webroot "$WEBROOT" --keylength ec-256)
+  if [ -f "$manifest" ]; then
+    args+=(--force)   # 该组此前签发过 → 域名列表有变，强制重签
+  fi
+  local d
+  for d in "$@"; do args+=(-d "$d"); done
+  run_acme --issue "${args[@]}" || return 1
+
+  if [ "$DRY_RUN" = "1" ]; then
+    return 0
+  fi
+  mkdir -p "$CERT_DIR/group-$nn"
+  run_acme --install-cert -d "$primary" --ecc \
+    --fullchain-file "$CERT_DIR/group-$nn/fullchain.pem" \
+    --key-file "$CERT_DIR/group-$nn/privkey.pem" \
+    --reloadcmd "systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true" || return 1
+  printf '%s\n' "$@" > "$manifest"
+  printf '%s\n' "$ACME_SERVER" > "$cafile"
+}
 
 # ── 分组签发 ────────────────────────────────────────────────
 ISSUED=0
@@ -66,45 +97,23 @@ for ((i = 0; i < TOTAL; i += GROUP_SIZE)); do
   GROUP=("${DOMAINS[@]:$i:$GROUP_SIZE}")
   NN=$(printf '%02d' $((i / GROUP_SIZE + 1)))
   MANIFEST="$CERT_DIR/group-$NN.domains"
-  CAFILE="$CERT_DIR/group-$NN.ca"
-
-  printf '%s\n' "${GROUP[@]}" > "$MANIFEST.new"
-  if [ -f "$MANIFEST" ] && cmp -s "$MANIFEST" "$MANIFEST.new" \
-     && [ -f "$CERT_DIR/group-$NN/fullchain.pem" ] \
-     && [ -f "$CAFILE" ] && [ "$(cat "$CAFILE")" = "$ACME_SERVER" ]; then
-    rm "$MANIFEST.new"
-    continue   # 组内域名没变、证书已存在、CA 也没换，跳过
-  fi
-
   PRIMARY="${GROUP[0]}"
-  echo "▶ 签发第 $NN 组: ${#GROUP[@]} 个域名（主域名 ${PRIMARY}）..."
-  ARGS=("--server" "$ACME_SERVER" "--webroot" "$WEBROOT" "--keylength" "ec-256")
-  if [ -f "$MANIFEST" ]; then
-    ARGS+=("--force")   # 组内域名列表变了，强制重签
-  fi
-  for d in "${GROUP[@]}"; do ARGS+=("-d" "$d"); done
-  if ! run_acme --issue "${ARGS[@]}"; then
-    echo "✗ 第 $NN 组签发失败（主域名 ${PRIMARY}），继续处理后面的组" >&2
-    FAILED_GROUPS+=("$NN")
-    rm -f "$MANIFEST.new"
+
+  # 域名列表、证书文件、CA 三者都没变 → 跳过
+  if [ -f "$MANIFEST" ] \
+     && [ "$(cat "$MANIFEST" 2>/dev/null)" = "$(printf '%s\n' "${GROUP[@]}")" ] \
+     && [ -f "$CERT_DIR/group-$NN/fullchain.pem" ] \
+     && [ "$(cat "$CERT_DIR/group-$NN.ca" 2>/dev/null)" = "$ACME_SERVER" ]; then
     continue
   fi
 
-  if [ "$DRY_RUN" != "1" ]; then
-    mkdir -p "$CERT_DIR/group-$NN"
-    if ! run_acme --install-cert -d "$PRIMARY" --ecc \
-      --fullchain-file "$CERT_DIR/group-$NN/fullchain.pem" \
-      --key-file "$CERT_DIR/group-$NN/privkey.pem" \
-      --reloadcmd "systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true"; then
-      echo "✗ 第 $NN 组证书安装失败（主域名 ${PRIMARY}），继续处理后面的组" >&2
-      FAILED_GROUPS+=("$NN")
-      rm -f "$MANIFEST.new"
-      continue
-    fi
-    mv "$MANIFEST.new" "$MANIFEST"
-    printf '%s\n' "$ACME_SERVER" > "$CAFILE"
+  echo "▶ 签发第 $NN 组: ${#GROUP[@]} 个域名（主域名 ${PRIMARY}）..."
+  if issue_and_install "$NN" "${GROUP[@]}"; then
+    ISSUED=$((ISSUED + 1))
+  else
+    echo "✗ 第 $NN 组签发/安装失败（主域名 ${PRIMARY}），继续处理后面的组" >&2
+    FAILED_GROUPS+=("$NN")
   fi
-  ISSUED=$((ISSUED + 1))
 done
 
 # ── 清理多余分组（域名数量减少时）─────────────────────────
