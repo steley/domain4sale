@@ -80,5 +80,5 @@ if (host) {
 document.getElementById("year").textContent = new Date().getFullYear();
 
 if (CONTACT_EMAIL === "you@example.com") {
-  console.warn("[domain-sale] CONTACT_EMAIL is still the placeholder — edit public/js/app.js");
+  console.warn("[domain4sale] CONTACT_EMAIL is still the placeholder — edit public/js/app.js");
 }

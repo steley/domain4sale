@@ -3,7 +3,8 @@
 # 部署步骤见 README「六、HTTPS → 方案 B」。与 nginx 二选一（80/443 端口冲突）。
 
 {
-	# Let's Encrypt 账户邮箱（证书到期提醒用），改成你的
+	# Let's Encrypt 账户邮箱：去掉注释并改成你的邮箱。
+	# 不填则注册匿名账户，证书签发/续期出问题时收不到 LE 的提醒邮件
 	# email you@example.com
 
 	# 签发前 Caddy 会先询问本机白名单接口：这个域名是我的吗？
@@ -20,7 +21,7 @@ http:// {
 
 # 443 端口：catch-all，1500 个域名共用这一个站点
 https:// {
-	root * /var/www/domain-sale/public
+	root * /var/www/domain4sale/public
 	encode gzip
 	header /data/domains.json Cache-Control "public, max-age=300"
 	file_server

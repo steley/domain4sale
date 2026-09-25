@@ -89,6 +89,8 @@ def main() -> int:
             continue
         if domain in result:
             dup += 1
+            print(f"  ! 第 {lineno} 行：{domain} 重复，覆盖旧价格 {result[domain]} → {price}",
+                  file=sys.stderr)
         result[domain] = price
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

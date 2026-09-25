@@ -1,4 +1,4 @@
-# 域名出售页（Domain Sale Page）
+# domain4sale — 域名出售页
 
 纯静态方案：**没有后端、没有数据库进程**，nginx 或 Caddy 托管静态文件即可。
 
@@ -10,12 +10,12 @@
 ## 目录结构
 
 ```
-domain-sale/
+domain4sale/
 ├── data/
 │   └── domains.tsv             # ← 你的数据：从 Excel 直接粘贴（维护数据只碰这个文件）
 ├── scripts/
 │   ├── build_json.py           # domains.tsv → public/data/domains.json
-│   ├── issue_certs.sh          # HTTPS 方案A：acme.sh 批量签发证书（自动分组/续期）
+│   ├── issue_certs.sh          # HTTPS 方案A：acme.sh 批量签发证书（自动分组/续期，生成每组 server 块）
 │   └── ask_server.py           # HTTPS 方案B：Caddy 签发白名单接口
 ├── public/                     # 整个目录 = 网站根目录（上传到 VPS）
 │   ├── index.html
@@ -23,10 +23,10 @@ domain-sale/
 │   ├── js/app.js               # CONTACT_EMAIL 在这里改
 │   └── data/domains.json       # 自动生成的产物
 └── deploy/
-    ├── nginx-domain-sale.conf        # nginx：HTTP 版（签证书时先用它）
-    ├── nginx-domain-sale-https.conf  # nginx：HTTPS 版（证书签好后切换）
+    ├── nginx-domain4sale.conf        # nginx：HTTP 版（签证书时先用它）
+    ├── nginx-domain4sale-https.conf  # nginx：HTTPS 版（证书签好后切换）
     ├── Caddyfile                     # caddy：自动 HTTPS（与 nginx 二选一）
-    └── domain-sale-ask.service       # caddy 方案配套的 systemd 服务
+    └── domain4sale-ask.service       # caddy 方案配套的 systemd 服务
 ```
 
 ## 一、维护数据（日常只做这一步）
@@ -57,12 +57,12 @@ python3 -m http.server 8000 -d public
 
 ```bash
 # 本机：上传网站文件
-rsync -av --delete public/ root@你的VPS_IP:/var/www/domain-sale/public/
+rsync -av --delete public/ root@你的VPS_IP:/var/www/domain4sale/public/
 
 # VPS 上：
 apt update && apt install -y nginx
-cp /路径/deploy/nginx-domain-sale.conf /etc/nginx/sites-available/domain-sale
-ln -sf /etc/nginx/sites-available/domain-sale /etc/nginx/sites-enabled/domain-sale
+cp /路径/deploy/nginx-domain4sale.conf /etc/nginx/sites-available/domain4sale
+ln -sf /etc/nginx/sites-available/domain4sale /etc/nginx/sites-enabled/domain4sale
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 ```
@@ -112,19 +112,23 @@ sudo -i
 curl https://get.acme.sh | sh -s email=你的邮箱
 
 # 3. 批量签发（自动读 public/data/domains.json）
-bash /var/www/domain-sale/scripts/issue_certs.sh
+bash /var/www/domain4sale/scripts/issue_certs.sh
 #    首次想先演练流程不出真证书的话:
 #    ACME_SERVER=letsencrypt_test DRY_RUN=1 bash scripts/issue_certs.sh
 
 # 4. 签发成功后切换到 HTTPS 配置
-cp /var/www/domain-sale/deploy/nginx-domain-sale-https.conf \
-   /etc/nginx/sites-available/domain-sale
+cp /var/www/domain4sale/deploy/nginx-domain4sale-https.conf \
+   /etc/nginx/sites-available/domain4sale
 nginx -t && systemctl reload nginx
 ```
 
 - 续期全自动：acme.sh 自带 cron，每张证书到期前自动续期并 reload nginx
 - 新增/删除域名：更新 `domains.tsv` → `build_json.py` → 重跑 `issue_certs.sh`
   （组内域名没变的证书直接跳过；域名减少时多余分组自动清理）
+- 生成的 HTTPS 配置按"每组域名一个 server 块"组织（nginx 不支持在同一个
+  server 块内按 SNI 选择证书），并附带一个兜底块：未收录域名 / IP 直接访问
+  会落到兜底块，浏览器会提示证书不匹配——属预期行为，把域名录入
+  `domains.tsv` 后重跑脚本即可解决
 - 脚本支持 `DRY_RUN=1` 演练、`GROUP_SIZE`/`CERT_DIR` 等环境变量覆盖，详见脚本头部注释
 
 ### 方案 B：Caddy on_demand_tls（全自动，访客访问时自动签发）
@@ -145,16 +149,16 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
 apt update && apt install -y caddy
 
 # 3. 启动 ask 白名单接口（只监听本机 127.0.0.1:5555，外部不可访问）
-cp /var/www/domain-sale/deploy/domain-sale-ask.service /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now domain-sale-ask
+cp /var/www/domain4sale/deploy/domain4sale-ask.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now domain4sale-ask
 
 # 4. 启用站点配置
-cp /var/www/domain-sale/deploy/Caddyfile /etc/caddy/Caddyfile
+cp /var/www/domain4sale/deploy/Caddyfile /etc/caddy/Caddyfile
 systemctl reload caddy
 ```
 
-- 整个项目（含 `scripts/`、`deploy/`）上传到 `/var/www/domain-sale`，网站根目录
-  默认 `/var/www/domain-sale/public`（Caddyfile 里可改）
+- 整个项目（含 `scripts/`、`deploy/`）上传到 `/var/www/domain4sale`，网站根目录
+  默认 `/var/www/domain4sale/public`（Caddyfile 里可改）
 - 更新价格数据后**无需重启任何东西**：ask 接口按文件修改时间自动重新加载白名单
 
 

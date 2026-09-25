@@ -1,2 +1,4 @@
 # 排除
 .DS_Store
+__pycache__/
+*.pyc
