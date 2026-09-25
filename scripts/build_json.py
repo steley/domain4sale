@@ -33,7 +33,7 @@ def clean_domain(raw: str) -> str:
 
 
 def parse_price(raw: str):
-    """返回数字，空值返回 None。容忍 $、千位逗号、USD 等符号。"""
+    """返回数字；空值或 0 返回 None（0 视为未定价）。容忍 $、千位逗号、USD 等符号。"""
     p = re.sub(r"(?i)usd|cny|rmb", "", raw)
     p = p.replace(",", "").replace("$", "").replace("¥", "").replace("￥", "").strip()
     if not p:
@@ -44,6 +44,8 @@ def parse_price(raw: str):
         raise ValueError(f"无法识别的价格 “{raw.strip()}”")
     if value < 0:
         raise ValueError(f"价格不能为负数 “{raw.strip()}”")
+    if value == 0:
+        return None
     return int(value) if value.is_integer() else round(value, 2)
 
 

@@ -5,7 +5,7 @@
 用 Excel 维护「域名 / 价格」，粘贴进来跑一条命令生成 `domains.json`，
 页面 JS 根据访问的域名自动显示标题和价格。
 
-![](example.png)
+![domain4sale 页面效果截图](example.png)
 
 ## 目录结构
 
@@ -42,7 +42,7 @@ python3 scripts/build_json.py
 - Excel 直接复制粘贴（制表符分隔）即可；另存为的 CSV 也能识别。
 - 有没有表头都行（`domain / price` 表头自动跳过）。
 - 价格里的 `$`、千位逗号、`USD` 会自动去掉（`$2,500.00` → 2500）。
-- **价格留空的域名不出现在 JSON 里 → 页面显示 "Make an offer"**。
+- **价格留空的域名不出现在 JSON 里 → 页面显示 "Make an offer"**（价格填 0 同样按未定价处理）。
 - 域名自动转小写、去掉 `www.`。中文域名（IDN）请填 punycode 形式（`xn--…`）。
 
 本地预览：
@@ -130,6 +130,10 @@ nginx -t && systemctl reload nginx
   会落到兜底块，浏览器会提示证书不匹配——属预期行为，把域名录入
   `domains.tsv` 后重跑脚本即可解决
 - 脚本支持 `DRY_RUN=1` 演练、`GROUP_SIZE`/`CERT_DIR` 等环境变量覆盖，详见脚本头部注释
+- 个别组签发失败（如该组有域名 DNS 未生效）不会中断整批：脚本会跳过失败组继续，
+  结尾列出失败清单并以非零码退出；排查后重跑即可续签，已成功的组自动跳过
+- 注意：HTTP 版与 HTTPS 版配置**二选一**启用（两者都有 80 端口的 default_server，
+  同时启用 `nginx -t` 会报冲突）；按上面命令 cp 覆盖同一个文件名则不会遇到
 
 ### 方案 B：Caddy on_demand_tls（全自动，访客访问时自动签发）
 
@@ -160,6 +164,8 @@ systemctl reload caddy
 - 整个项目（含 `scripts/`、`deploy/`）上传到 `/var/www/domain4sale`，网站根目录
   默认 `/var/www/domain4sale/public`（Caddyfile 里可改）
 - 更新价格数据后**无需重启任何东西**：ask 接口按文件修改时间自动重新加载白名单
+- ask 白名单接口挂掉时，**新**域名的证书签不出来（买家首次访问会报连接错误）——
+  这是有意的安全默认；已签发的域名不受影响，systemd 会自动拉起 ask 服务
 
 
 ## 七、常见问题

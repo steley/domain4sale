@@ -58,20 +58,22 @@ if [ "$TOTAL" -eq 0 ]; then
 fi
 
 mkdir -p "$CERT_DIR"
-touch "$CERT_DIR/certs.conf"   # 保证 nginx include 引用的文件始终存在
 
 # ── 分组签发 ────────────────────────────────────────────────
 ISSUED=0
+FAILED_GROUPS=()
 for ((i = 0; i < TOTAL; i += GROUP_SIZE)); do
   GROUP=("${DOMAINS[@]:$i:$GROUP_SIZE}")
   NN=$(printf '%02d' $((i / GROUP_SIZE + 1)))
   MANIFEST="$CERT_DIR/group-$NN.domains"
+  CAFILE="$CERT_DIR/group-$NN.ca"
 
   printf '%s\n' "${GROUP[@]}" > "$MANIFEST.new"
   if [ -f "$MANIFEST" ] && cmp -s "$MANIFEST" "$MANIFEST.new" \
-     && [ -f "$CERT_DIR/group-$NN/fullchain.pem" ]; then
+     && [ -f "$CERT_DIR/group-$NN/fullchain.pem" ] \
+     && [ -f "$CAFILE" ] && [ "$(cat "$CAFILE")" = "$ACME_SERVER" ]; then
     rm "$MANIFEST.new"
-    continue   # 组内域名没变且证书已存在，跳过
+    continue   # 组内域名没变、证书已存在、CA 也没换，跳过
   fi
 
   PRIMARY="${GROUP[0]}"
@@ -81,15 +83,26 @@ for ((i = 0; i < TOTAL; i += GROUP_SIZE)); do
     ARGS+=("--force")   # 组内域名列表变了，强制重签
   fi
   for d in "${GROUP[@]}"; do ARGS+=("-d" "$d"); done
-  run_acme --issue "${ARGS[@]}"
+  if ! run_acme --issue "${ARGS[@]}"; then
+    echo "✗ 第 $NN 组签发失败（主域名 ${PRIMARY}），继续处理后面的组" >&2
+    FAILED_GROUPS+=("$NN")
+    rm -f "$MANIFEST.new"
+    continue
+  fi
 
   if [ "$DRY_RUN" != "1" ]; then
     mkdir -p "$CERT_DIR/group-$NN"
-    run_acme --install-cert -d "$PRIMARY" --ecc \
+    if ! run_acme --install-cert -d "$PRIMARY" --ecc \
       --fullchain-file "$CERT_DIR/group-$NN/fullchain.pem" \
       --key-file "$CERT_DIR/group-$NN/privkey.pem" \
-      --reloadcmd "systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true"
+      --reloadcmd "systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true"; then
+      echo "✗ 第 $NN 组证书安装失败（主域名 ${PRIMARY}），继续处理后面的组" >&2
+      FAILED_GROUPS+=("$NN")
+      rm -f "$MANIFEST.new"
+      continue
+    fi
     mv "$MANIFEST.new" "$MANIFEST"
+    printf '%s\n' "$ACME_SERVER" > "$CAFILE"
   fi
   ISSUED=$((ISSUED + 1))
 done
@@ -108,7 +121,7 @@ for dir in "$CERT_DIR"/group-*; do
       if [ -f "$m" ]; then
         "$ACME" --remove -d "$(head -n1 "$m")" --ecc >/dev/null 2>&1 || true
       fi
-      rm -rf "$dir" "$m"
+      rm -rf "$dir" "$m" "$CERT_DIR/$base.ca"
       echo "ℹ 已清理多余的 ${dir}（域名数量减少）"
     fi
   fi
@@ -191,6 +204,10 @@ echo "✓ 完成: $TOTAL 个域名 / $TOTAL_GROUPS 张证书，本次新签 $ISS
 echo "  nginx 配置片段: ${CONF}（每组成员一个 server 块 + 兜底块）"
 if [ "$DRY_RUN" = "1" ]; then
   echo "  （dry-run 模式，未实际签发；去掉 DRY_RUN=1 正式执行）"
+elif [ "${#FAILED_GROUPS[@]}" -gt 0 ]; then
+  echo "✗ 以下组签发/安装失败: ${FAILED_GROUPS[*]}" >&2
+  echo "  已成功的组不受影响；排查（多为组内域名 DNS 未生效）后重跑本脚本即可续签" >&2
+  exit 1
 elif [ "$ISSUED" -gt 0 ]; then
   echo "  下一步: 启用 deploy/nginx-domain4sale-https.conf 并 reload"
 fi
