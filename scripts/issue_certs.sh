@@ -174,6 +174,9 @@ for dir in "$CERT_DIR"/group-*; do
   base=$(basename "$dir")
   m="$CERT_DIR/$base.domains"
   [ -f "$m" ] || continue
+  # 清单在但证书文件丢了（如手工误删，且当轮重签又失败）→ 跳过该组，
+  # 否则会生成引用不存在 pem 的配置，导致 nginx -t 失败、重启起不来
+  [ -f "$dir/fullchain.pem" ] && [ -f "$dir/privkey.pem" ] || continue
   if [ -z "$FIRST_GROUP" ]; then FIRST_GROUP="$dir"; fi
 
   {
