@@ -23,6 +23,11 @@ DOMAIN_FILE="${DOMAIN_FILE:-$PROJECT_DIR/public/data/domains.json}"
 WEBROOT="${WEBROOT:-/var/www/domain4sale/public}"
 CERT_DIR="${CERT_DIR:-/etc/nginx/ssl/domain4sale}"
 GROUP_SIZE="${GROUP_SIZE:-100}"
+# 负数/0 会导致死循环或除零；超过 100 触碰 Let's Encrypt 单证书域名上限
+case "$GROUP_SIZE" in
+  *[!0-9]*|0) echo "✗ GROUP_SIZE 必须是 1–100 的整数（当前: ${GROUP_SIZE}）" >&2; exit 1 ;;
+esac
+[ "$GROUP_SIZE" -le 100 ] || { echo "✗ GROUP_SIZE 不能超过 100（Let's Encrypt 单证书上限）" >&2; exit 1; }
 ACME_SERVER="${ACME_SERVER:-letsencrypt}"
 ACME="${ACME:-$HOME/.acme.sh/acme.sh}"
 

@@ -1,0 +1,61 @@
+# CI：语法检查 + 数据管道校验。改了 domains.tsv 忘了重新构建 domains.json 时这里会变红。
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Shell 脚本语法
+        run: bash -n scripts/issue_certs.sh
+
+      - name: Python 语法
+        run: python3 -m py_compile scripts/build_json.py scripts/ask_server.py
+
+      - name: JS 语法
+        run: node --check public/js/app.js
+
+      - name: 重建 domains.json 并校验内容
+        run: |
+          python3 scripts/build_json.py
+          python3 - <<'PY'
+          import json, pathlib
+          data = json.loads(pathlib.Path("public/data/domains.json").read_text(encoding="utf-8"))
+          assert isinstance(data, dict), "顶层必须是对象"
+          for k, v in data.items():
+              assert isinstance(v, (int, float)) and v > 0, f"{k}: 非法价格 {v!r}"
+          print(f"domains.json OK: {len(data)} 个域名")
+          PY
+
+      - name: domains.json 与 domains.tsv 同步检查
+        run: git diff --exit-code public/data/domains.json
+
+      - name: ask 白名单接口冒烟测试
+        run: |
+          DOMAINS_JSON="$PWD/public/data/domains.json" python3 - <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          import ask_server
+          domains = ask_server.load_domains()
+          assert domains, "白名单为空"
+          print(f"ask 白名单 OK: {len(domains)} 个域名")
+          PY
+
+      - name: 页面静态资源齐全
+        run: |
+          test -f public/index.html
+          test -f public/css/style.css
+          test -f public/js/app.js

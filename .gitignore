@@ -2,3 +2,6 @@
 .DS_Store
 __pycache__/
 *.pyc
+# 本地 LLM 审查报告（含全部代码内容，不进仓库）
+review1
+review1.json

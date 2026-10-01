@@ -9,6 +9,7 @@
 import argparse
 import csv
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -17,8 +18,9 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = ROOT / "data" / "domains.tsv"
 DEFAULT_OUTPUT = ROOT / "public" / "data" / "domains.json"
 
-# 中文等非 ASCII 域名请先转成 punycode（xn--…）再粘贴
-DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+# 中文等非 ASCII 域名请先转成 punycode（xn--…）再粘贴；
+# TLD 同样支持 punycode 形式（如 .中国 = xn--fiqs8s）
+DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+(xn--[a-z0-9-]{2,59}|[a-z]{2,63})$")
 HEADER_NAMES = {"domain", "domains", "name", "域名"}
 
 
@@ -46,6 +48,8 @@ def parse_price(raw: str):
         value = float(p)
     except ValueError:
         raise ValueError(f"无法识别的价格 “{raw.strip()}”")
+    if not math.isfinite(value):
+        raise ValueError(f"价格不是有限数字 “{raw.strip()}”")
     if value < 0:
         raise ValueError(f"价格不能为负数 “{raw.strip()}”")
     if value == 0:
@@ -102,7 +106,7 @@ def main() -> int:
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2, sort_keys=True)
+        json.dump(result, f, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False)
         f.write("\n")
 
     print(f"✓ 已生成 {out_path}")

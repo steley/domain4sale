@@ -1,6 +1,8 @@
 /* ====== 配置 ====== */
 /* 改成你的邮箱：买家点击按钮后会向这个邮箱发邮件 */
 const CONTACT_EMAIL = "you@example.com";
+/* 价格数据地址（相对站点根目录） */
+const DATA_URL = "data/domains.json";
 
 /* ====== 以下为逻辑代码，一般无需修改 ====== */
 
@@ -42,7 +44,7 @@ function applyHost(host) {
 
 /* 设置价格区和按钮 */
 function applyPrice(price, host) {
-  if (price != null) {
+  if (price !== null && price !== undefined) {
     $priceBox.classList.add("has-price");
     $price.textContent = formatUSD(price);
     $priceUsd.hidden = false;
@@ -59,25 +61,37 @@ function applyPrice(price, host) {
   $btn.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-// ?domain=xxx.com 查询参数可覆盖实际域名，方便本地测试
-const override = new URLSearchParams(location.search).get("domain");
+// ?domain=xxx.com 查询参数可覆盖实际域名，仅限本地测试用（file://、localhost、IP 访问）；
+// 正式域名上放任覆盖的话，任何人都能把页面渲染成任意 "xxx.com for sale"
+const hn = location.hostname;
+const override = (!hn || hn === "localhost" || hn.endsWith(".localhost") || isIPAddress(hn))
+  ? new URLSearchParams(location.search).get("domain")
+  : null;
 const host = normalizeHost(override || location.hostname);
 
-if (host) {
-  applyHost(host);
-  fetch("data/domains.json")
-    .then((r) => (r.ok ? r.json() : {}))
-    .then((data) => applyPrice(
-      Object.prototype.hasOwnProperty.call(data, host) ? data[host] : null,
-      host
-    ))
-    .catch(() => applyPrice(null, host));
-} else {
-  // file:// 直接打开等无域名的场景：显示通用文案
-  applyPrice(null, "");
-}
+(async () => {
+  if (host) {
+    applyHost(host);
+    try {
+      const r = await fetch(DATA_URL);
+      const data = r.ok ? await r.json() : {};
+      applyPrice(
+        Object.prototype.hasOwnProperty.call(data, host) ? data[host] : null,
+        host
+      );
+    } catch {
+      // 数据加载失败时按"未定价"降级，并留下排查线索
+      console.warn("[domain4sale] Failed to load domains.json — falling back to \"Make an offer\"");
+      applyPrice(null, host);
+    }
+  } else {
+    // file:// 直接打开等无域名的场景：显示通用文案
+    applyPrice(null, "");
+  }
+})();
 
-document.getElementById("year").textContent = new Date().getFullYear();
+const $year = document.getElementById("year");
+if ($year) $year.textContent = new Date().getFullYear();
 
 if (CONTACT_EMAIL === "you@example.com") {
   console.warn("[domain4sale] CONTACT_EMAIL is still the placeholder — edit public/js/app.js");

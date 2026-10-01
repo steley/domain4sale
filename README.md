@@ -80,13 +80,17 @@ Excel 里改好 → 粘贴到 `data/domains.tsv` → `python3 scripts/build_json
 
 ## 四、修改联系邮箱
 
-编辑 `public/js/app.js` 顶部：
+需要改**两处**（第二处是 JS 被浏览器禁用时的兜底链接，容易被漏掉）：
+
+1. `public/js/app.js` 顶部：
 
 ```js
 const CONTACT_EMAIL = "you@example.com";
 ```
 
-改完重新上传 `app.js`。买家点击按钮后会带着预设主题（Purchase inquiry for 域名）给你发邮件。
+2. `public/index.html` 里按钮的 `href="mailto:you@example.com?...`。
+
+改完重新上传这两个文件。买家点击按钮后会带着预设主题（Purchase inquiry for 域名）给你发邮件。
 
 ## 五、页面显示逻辑
 

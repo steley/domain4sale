@@ -11,6 +11,7 @@ Caddy 在为某个域名签发证书前会先请求:
 """
 import json
 import os
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -35,9 +36,13 @@ def load_domains():
         if _cache["mtime"] != mtime:
             try:
                 data = json.loads(DOMAINS_JSON.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    raise ValueError("顶层必须是 JSON 对象（{\"域名\": 价格}）")
                 _cache["domains"] = set(data.keys())
                 _cache["mtime"] = mtime
-            except (OSError, ValueError):
+            except (OSError, ValueError) as e:
+                # 白名单加载失败时拒绝所有签发（宁可漏不可滥），但要让运维看到原因
+                print(f"[ask] 白名单加载失败，全部拒绝: {e}", file=sys.stderr)
                 return set()
         return _cache["domains"]
 

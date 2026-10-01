@@ -12,6 +12,7 @@
 [hidden] { display: none !important; }
 
 body {
+  min-height: 100vh;   /* 旧浏览器不认 dvh，回退到 vh 保证垂直居中 */
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -33,6 +34,7 @@ body::after {
   border-radius: 50%;
   filter: blur(90px);
   z-index: -1;
+  pointer-events: none;  /* 纯装饰，不拦截空区域的点击 */
 }
 body::before { width: 420px; height: 420px; background: rgba(79, 70, 229, 0.35); top: -120px; right: -80px; }
 body::after  { width: 380px; height: 380px; background: rgba(34, 211, 238, 0.16); bottom: -120px; left: -80px; }
@@ -111,7 +113,7 @@ h1 {
 
 .note { margin-top: 1.2rem; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
 
-.footer { color: #64748b; font-size: 0.8rem; text-align: center; }
+.footer { color: var(--muted); font-size: 0.8rem; text-align: center; }
 
 ::selection { background: rgba(99, 102, 241, 0.45); }
 
