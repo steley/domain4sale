@@ -10,6 +10,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import re
 import sys
 from pathlib import Path
@@ -105,9 +106,12 @@ def main() -> int:
         result[domain] = price
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8") as f:
+    tmp_path = Path(str(out_path) + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False)
         f.write("\n")
+    # 原子替换：ask 白名单/前端在任何时刻读到的都是完整 JSON，不存在截断窗口
+    os.replace(tmp_path, out_path)
 
     print(f"✓ 已生成 {out_path}")
     print(f"  数据行 {total} | 导入 {len(result)} | 无价格 {no_price} | 重复 {dup} | 异常 {bad}")

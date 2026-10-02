@@ -169,10 +169,12 @@ location / {
     try_files $uri $uri/ =404;
 }
 EOF
-} > "$COMMON"
+} > "$COMMON.tmp"
+mv -f "$COMMON.tmp" "$COMMON"   # 原子替换：并发 reload 不会读到半写状态
 
 CONF="$CERT_DIR/servers.conf"
-: > "$CONF"
+NEW_CONF="$CONF.tmp"
+: > "$NEW_CONF"
 FIRST_GROUP=""
 for dir in "$CERT_DIR"/group-*; do
   [ -d "$dir" ] || continue
@@ -199,11 +201,11 @@ for dir in "$CERT_DIR"/group-*; do
     echo "    include $COMMON;"
     echo "}"
     echo ""
-  } >> "$CONF"
+  } >> "$NEW_CONF"
 done
 
 if [ -n "$FIRST_GROUP" ]; then
-  cat >> "$CONF" <<EOF
+  cat >> "$NEW_CONF" <<EOF
 # 兜底块：未知域名 / IP 直接访问会落到这里。
 # CA 不会给未收录的域名签发证书，因此这里用第一组证书顶上，
 # 浏览器会提示"证书不匹配"，属预期行为（把它们录入 domains.tsv 即可解决）。
@@ -215,6 +217,20 @@ server {
     include $COMMON;
 }
 EOF
+fi
+
+# 原子替换整个配置文件：即使 acme.sh 续期 cron 的 reload 撞上写窗口，也读不到半写内容
+mv -f "$NEW_CONF" "$CONF"
+
+# 循环内 install-cert 的 reload 全部发生在重写之前，服务的都是旧配置；
+# 这里补一次生效动作，本轮新增域名的 server 块才会被运行中的 nginx 接住
+if [ "$DRY_RUN" != "1" ] && [ -s "$CONF" ]; then
+  if nginx -t; then
+    systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true
+    echo "ℹ 已 reload nginx，本次配置变更已生效"
+  else
+    echo "⚠ nginx -t 未通过，未 reload——请修复后手动执行 systemctl reload nginx" >&2
+  fi
 fi
 
 echo "✓ 完成: $TOTAL 个域名 / $TOTAL_GROUPS 张证书，本次新签 $ISSUED 张"

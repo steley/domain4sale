@@ -28,6 +28,8 @@ https:// {
 	}
 	root * /var/www/domain4sale/public
 	encode gzip
+	# HSTS：浏览器此后强制 HTTPS（站点级全局生效，nginx 方案的 common.conf 有对应项）
+	header Strict-Transport-Security "max-age=31536000"
 	header /data/domains.json Cache-Control "public, max-age=300"
 	file_server
 }
