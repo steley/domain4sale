@@ -190,12 +190,7 @@ for dir in "$CERT_DIR"/group-*; do
     echo "server {"
     echo "    listen 443 ssl;"
     echo "    listen [::]:443 ssl;"
-    n=0; sn=""
-    while IFS= read -r d; do
-      sn="$sn $d"; n=$((n + 1))
-      if [ $((n % 20)) -eq 0 ]; then echo "    server_name$sn;"; sn=""; fi
-    done < "$m"
-    if [ -n "$sn" ]; then echo "    server_name$sn;"; fi
+    echo "    server_name $(paste -sd ' ' "$m");"
     echo "    ssl_certificate     $dir/fullchain.pem;"
     echo "    ssl_certificate_key $dir/privkey.pem;"
     echo "    include $COMMON;"

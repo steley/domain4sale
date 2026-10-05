@@ -1,6 +1,6 @@
 /* ====== 配置 ====== */
-/* 改成你的邮箱：买家点击按钮后会向这个邮箱发邮件 */
-const CONTACT_EMAIL = "you@example.com";
+/* 联系邮箱只改 index.html 里按钮的 href（mailto:you@example.com），
+   JS 会自动从那里读取，无需在此重复配置 */
 /* 价格数据地址（相对站点根目录） */
 const DATA_URL = "data/domains.json";
 
@@ -12,6 +12,9 @@ const $priceBox = document.getElementById("price-box");
 const $price = document.getElementById("price");
 const $priceUsd = document.getElementById("price-usd");
 const $btn = document.getElementById("contact-btn");
+/* 联系邮箱单一来源：index.html 按钮的 href（mailto:xxx?subject=… → xxx）。
+   必须在下方 applyPrice() 覆写 href 之前取值 */
+const CONTACT_EMAIL = $btn.href.slice(7).split("?")[0];
 
 function normalizeHost(raw) {
   let h = (raw || "").toLowerCase().trim();

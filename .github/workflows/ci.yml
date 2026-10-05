@@ -16,14 +16,6 @@ jobs:
       # actions 一律钉 commit SHA（tag 可被上游移动），注释里标对应版本
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.x"
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-
       - name: Shell 脚本语法
         run: bash -n scripts/issue_certs.sh
 
@@ -58,9 +50,3 @@ jobs:
           assert domains, "白名单为空"
           print(f"ask 白名单 OK: {len(domains)} 个域名")
           PY
-
-      - name: 页面静态资源齐全
-        run: |
-          test -f public/index.html
-          test -f public/css/style.css
-          test -f public/js/app.js

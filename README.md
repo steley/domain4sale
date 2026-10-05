@@ -20,7 +20,7 @@ domain4sale/
 ├── public/                     # 整个目录 = 网站根目录（上传到 VPS）
 │   ├── index.html
 │   ├── css/style.css
-│   ├── js/app.js               # CONTACT_EMAIL 在这里改
+│   ├── js/app.js               # 逻辑代码；联系邮箱取自 index.html 的 mailto 链接
 │   └── data/domains.json       # 自动生成的产物
 └── deploy/
     ├── nginx-domain4sale.conf        # nginx：HTTP 版（签证书时先用它）
@@ -80,17 +80,10 @@ Excel 里改好 → 粘贴到 `data/domains.tsv` → `python3 scripts/build_json
 
 ## 四、修改联系邮箱
 
-需要改**两处**（第二处是 JS 被浏览器禁用时的兜底链接，容易被漏掉）：
+只需改**一处**：`public/index.html` 里按钮的 `href="mailto:you@example.com?...`。
+JS 会自动从这个 href 读取邮箱（它同时是 JS 被浏览器禁用时的兜底链接）。
 
-1. `public/js/app.js` 顶部：
-
-```js
-const CONTACT_EMAIL = "you@example.com";
-```
-
-2. `public/index.html` 里按钮的 `href="mailto:you@example.com?...`。
-
-改完重新上传这两个文件。买家点击按钮后会带着预设主题（Purchase inquiry for 域名）给你发邮件。
+改完重新上传 index.html。买家点击按钮后会带着预设主题（Purchase inquiry for 域名）给你发邮件。
 
 ## 五、页面显示逻辑
 
